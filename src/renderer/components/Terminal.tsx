@@ -64,8 +64,13 @@ export const TerminalComponent: React.FC<TerminalProps> = memo(({ sessionId, isV
       });
 
       const fitAddon = new FitAddon();
+      const webLinksAddon = new WebLinksAddon((event, uri) => {
+        event.preventDefault();
+        window.nanoMux.shell.openExternal(uri);
+      });
+
       xterm.loadAddon(fitAddon);
-      xterm.loadAddon(new WebLinksAddon());
+      xterm.loadAddon(webLinksAddon);
 
       entry = { xterm, fitAddon, initialized: false };
       terminals.set(sessionId, entry);

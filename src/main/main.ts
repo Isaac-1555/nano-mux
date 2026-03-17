@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -123,6 +123,17 @@ function setupIPC(win: BrowserWindow) {
   });
 
   ipcMain.handle('fs:getHome', () => os.homedir());
+
+  // ── Shell ───────────────────────────────────────────────────────
+
+  ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+    try {
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
 
   // ── Git ─────────────────────────────────────────────────────
 

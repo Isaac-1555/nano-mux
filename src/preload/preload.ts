@@ -30,6 +30,9 @@ export interface NanoMuxAPI {
     diff: (cwd: string, filePath?: string) => Promise<{ diff: string | null; error: string | null }>;
     fileContent: (cwd: string, filePath: string, ref: string) => Promise<{ content: string; error: string | null }>;
   };
+  shell: {
+    openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+  };
 }
 
 const api: NanoMuxAPI = {
@@ -60,6 +63,9 @@ const api: NanoMuxAPI = {
     status: (cwd) => ipcRenderer.invoke('git:status', { cwd }),
     diff: (cwd, filePath) => ipcRenderer.invoke('git:diff', { cwd, filePath }),
     fileContent: (cwd, filePath, ref) => ipcRenderer.invoke('git:fileContent', { cwd, filePath, ref }),
+  },
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
   },
 };
 
