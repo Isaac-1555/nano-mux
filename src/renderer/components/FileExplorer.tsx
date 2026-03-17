@@ -35,6 +35,14 @@ const ChevronIcon = memo(() => (
 ));
 ChevronIcon.displayName = 'ChevronIcon';
 
+const OpenFolderIcon = memo(() => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+    <path d="M2 4h4l2 2h6v8H2V4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    <path d="M7 8l2-2 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+));
+OpenFolderIcon.displayName = 'OpenFolderIcon';
+
 // Color cache for file extensions
 const extensionColors: Record<string, string> = {
   ts: '#3178c6', tsx: '#3178c6',
@@ -57,9 +65,10 @@ interface FileTreeItemProps {
   depth: number;
   onToggle: (path: string) => void;
   onFileClick: (path: string) => void;
+  onFolderOpen: (path: string) => void;
 }
 
-const FileTreeItem: React.FC<FileTreeItemProps> = memo(({ node, depth, onToggle, onFileClick }) => {
+const FileTreeItem: React.FC<FileTreeItemProps> = memo(({ node, depth, onToggle, onFileClick, onFolderOpen }) => {
   const handleClick = useCallback(() => {
     if (node.isDirectory) {
       onToggle(node.path);
@@ -67,6 +76,12 @@ const FileTreeItem: React.FC<FileTreeItemProps> = memo(({ node, depth, onToggle,
       onFileClick(node.path);
     }
   }, [node.isDirectory, node.path, onToggle, onFileClick]);
+
+  const handleDoubleClick = useCallback(() => {
+    if (node.isDirectory) {
+      onFolderOpen(node.path);
+    }
+  }, [node.isDirectory, node.path, onFolderOpen]);
 
   const fileColor = useMemo(() => getFileColor(node.name), [node.name]);
 
@@ -76,6 +91,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = memo(({ node, depth, onToggle,
         className="file-tree-item"
         style={{ paddingLeft: `${12 + depth * 16}px` }}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
       >
         {node.isDirectory ? (
           <span className={`file-tree-item__chevron ${node.isExpanded ? 'file-tree-item__chevron--open' : ''}`}>
@@ -98,6 +114,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = memo(({ node, depth, onToggle,
               depth={depth + 1}
               onToggle={onToggle}
               onFileClick={onFileClick}
+              onFolderOpen={onFolderOpen}
             />
           ))}
         </div>
@@ -109,7 +126,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = memo(({ node, depth, onToggle,
 FileTreeItem.displayName = 'FileTreeItem';
 
 export const FileExplorer: React.FC = memo(() => {
-  const { activeSessionId, sessions, openFile } = useAppStore();
+  const { activeSessionId, sessions, openFile, rootDirectory, setRootDirectory, setSessionCwd } = useAppStore();
   const [rootPath, setRootPath] = useState<string>('');
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -117,9 +134,10 @@ export const FileExplorer: React.FC = memo(() => {
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
+  // Load root directory
   useEffect(() => {
     const loadRoot = async () => {
-      const cwd = activeSession?.cwd || await window.nanoMux.fs.getHome();
+      const cwd = rootDirectory || activeSession?.cwd || await window.nanoMux.fs.getHome();
       setRootPath(cwd);
       const entries = await window.nanoMux.fs.readDir(cwd);
       setTree(entries.map(e => ({ ...e, children: undefined, isExpanded: false })));
@@ -127,7 +145,33 @@ export const FileExplorer: React.FC = memo(() => {
       childrenCache.clear();
     };
     loadRoot();
-  }, [activeSessionId, activeSession?.cwd]);
+  }, [rootDirectory, activeSessionId, activeSession?.cwd]);
+
+  // Open directory dialog
+  const handleOpenDirectory = useCallback(async () => {
+    const dirPath = await window.nanoMux.dialog.openDirectory();
+    if (dirPath) {
+      setRootDirectory(dirPath);
+      const sessionId = activeSessionId;
+      if (sessionId) {
+        await window.nanoMux.pty.write(sessionId, `cd "${dirPath}"\n`);
+        setSessionCwd(sessionId, dirPath);
+      }
+    }
+  }, [setRootDirectory, activeSessionId, setSessionCwd]);
+
+  // Global keyboard shortcut Ctrl+O / Cmd+O
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey;
+      if (isMod && e.key === 'o') {
+        e.preventDefault();
+        handleOpenDirectory();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleOpenDirectory]);
 
   const loadChildren = useCallback(async (dirPath: string): Promise<TreeNode[]> => {
     if (childrenCache.has(dirPath)) {
@@ -163,6 +207,14 @@ export const FileExplorer: React.FC = memo(() => {
     openFile(filePath, 'edit');
   }, [openFile]);
 
+  const handleFolderOpen = useCallback(async (dirPath: string) => {
+    const sessionId = activeSessionId;
+    if (sessionId) {
+      await window.nanoMux.pty.write(sessionId, `cd "${dirPath}"\n`);
+      setSessionCwd(sessionId, dirPath);
+    }
+  }, [activeSessionId, setSessionCwd]);
+
   const pathParts = rootPath.split('/').filter(Boolean);
   const displayPath = pathParts.length > 2 ? '.../' + pathParts.slice(-2).join('/') : rootPath;
 
@@ -174,15 +226,19 @@ export const FileExplorer: React.FC = memo(() => {
         depth={0}
         onToggle={handleToggle}
         onFileClick={handleFileClick}
+        onFolderOpen={handleFolderOpen}
       />
     ))
-  ), [tree, handleToggle, handleFileClick]);
+  ), [tree, handleToggle, handleFileClick, handleFolderOpen]);
 
   return (
     <div className="panel file-explorer">
       <div className="panel__header">
         <span className="panel__title">Explorer</span>
         <span className="panel__subtitle" title={rootPath}>{displayPath}</span>
+        <button className="panel__action" onClick={handleOpenDirectory} title="Open Folder (Ctrl+O / Cmd+O)">
+          <OpenFolderIcon />
+        </button>
       </div>
       <div className="panel__content">
         {treeContent}

@@ -36,6 +36,7 @@ interface AppState {
 
   // Panels
   activePanel: PanelType;
+  rootDirectory: string | null;
 
   // Editor
   editor: EditorState;
@@ -51,6 +52,7 @@ interface AppState {
   setSessionCwd: (id: string, cwd: string) => void;
 
   togglePanel: (panel: PanelType) => void;
+  setRootDirectory: (path: string | null) => void;
 
   openFile: (filePath: string, mode?: EditorMode) => void;
   closeEditor: () => void;
@@ -73,6 +75,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   nextSessionNumber: 1,
 
   activePanel: 'none',
+  rootDirectory: null,
 
   editor: {
     isOpen: false,
@@ -166,6 +169,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   togglePanel: (panel: PanelType) => {
     const { activePanel } = get();
     set({ activePanel: activePanel === panel ? 'none' : panel });
+  },
+
+  setRootDirectory: (path: string | null) => {
+    set({ rootDirectory: path });
   },
 
   openFile: (filePath: string, mode: EditorMode = 'edit') => {

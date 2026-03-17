@@ -33,6 +33,9 @@ export interface NanoMuxAPI {
   shell: {
     openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   };
+  dialog: {
+    openDirectory: () => Promise<string | null>;
+  };
 }
 
 const api: NanoMuxAPI = {
@@ -66,6 +69,9 @@ const api: NanoMuxAPI = {
   },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  },
+  dialog: {
+    openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   },
 };
 

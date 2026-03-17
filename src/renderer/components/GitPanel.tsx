@@ -2,19 +2,14 @@ import React, { useEffect, useCallback } from 'react';
 import { useAppStore } from '../state/store';
 
 export const GitPanel: React.FC = () => {
-  const { activeSessionId, sessions, gitStatus, setGitStatus, openFile } = useAppStore();
+  const { activeSessionId, sessions, gitStatus, setGitStatus, openFile, rootDirectory } = useAppStore();
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
   const refreshStatus = useCallback(async () => {
-    if (!activeSession?.cwd) {
-      const home = await window.nanoMux.fs.getHome();
-      const status = await window.nanoMux.git.status(home);
-      setGitStatus(status);
-    } else {
-      const status = await window.nanoMux.git.status(activeSession.cwd);
-      setGitStatus(status);
-    }
-  }, [activeSession?.cwd, setGitStatus]);
+    const cwd = rootDirectory || activeSession?.cwd || await window.nanoMux.fs.getHome();
+    const status = await window.nanoMux.git.status(cwd);
+    setGitStatus(status);
+  }, [rootDirectory, activeSession?.cwd, setGitStatus]);
 
   useEffect(() => {
     refreshStatus();
@@ -23,10 +18,10 @@ export const GitPanel: React.FC = () => {
   }, [refreshStatus]);
 
   const handleFileClick = useCallback((filePath: string) => {
-    const cwd = activeSession?.cwd || '';
+    const cwd = rootDirectory || activeSession?.cwd || '';
     const fullPath = filePath.startsWith('/') ? filePath : `${cwd}/${filePath}`;
     openFile(fullPath, 'diff');
-  }, [activeSession?.cwd, openFile]);
+  }, [rootDirectory, activeSession?.cwd, openFile]);
 
   const getStatusIcon = (index: string, workingDir: string) => {
     if (index === '?' || workingDir === '?') return { label: 'U', className: 'git-status--untracked' };
