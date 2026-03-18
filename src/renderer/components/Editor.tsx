@@ -12,7 +12,36 @@ import { rust } from '@codemirror/lang-rust';
 import { cpp } from '@codemirror/lang-cpp';
 import { lineNumbers, highlightActiveLine, highlightActiveLineGutter, keymap } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import { syntaxHighlighting, defaultHighlightStyle, HighlightStyle } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
+
+const syntaxColors = HighlightStyle.define([
+  { tag: tags.keyword, color: '#ff7b72' },
+  { tag: tags.operator, color: '#ff7b72' },
+  { tag: tags.special(tags.variableName), color: '#ffa657' },
+  { tag: tags.typeName, color: '#ffa657' },
+  { tag: tags.atom, color: '#79c0ff' },
+  { tag: tags.number, color: '#79c0ff' },
+  { tag: tags.definition(tags.variableName), color: '#d2a8ff' },
+  { tag: tags.string, color: '#a5d6ff' },
+  { tag: tags.special(tags.string), color: '#a5d6ff' },
+  { tag: tags.comment, color: '#8b949e', fontStyle: 'italic' },
+  { tag: tags.variableName, color: '#c9d1d9' },
+  { tag: tags.tagName, color: '#7ee787' },
+  { tag: tags.bracket, color: '#c9d1d9' },
+  { tag: tags.meta, color: '#c9d1d9' },
+  { tag: tags.link, color: '#58a6ff', textDecoration: 'underline' },
+  { tag: tags.heading, color: '#58a6ff', fontWeight: 'bold' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strong, fontWeight: 'bold' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.className, color: '#ffa657' },
+  { tag: tags.propertyName, color: '#79c0ff' },
+  { tag: tags.function(tags.variableName), color: '#d2a8ff' },
+  { tag: tags.bool, color: '#79c0ff' },
+  { tag: tags.null, color: '#79c0ff' },
+  { tag: tags.regexp, color: '#7ee787' },
+]);
 import { useAppStore } from '../state/store';
 
 function getLanguageExtension(filePath: string) {
@@ -160,7 +189,7 @@ export const Editor: React.FC = memo(() => {
         highlightActiveLineGutter(),
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        syntaxHighlighting(defaultHighlightStyle),
+        syntaxHighlighting(syntaxColors),
         langCompartment.current.of(langExtension),
         oneDark,
         EditorView.theme({
