@@ -7,6 +7,7 @@ export interface NanoMuxAPI {
     resize: (id: string, cols: number, rows: number) => Promise<void>;
     destroy: (id: string) => Promise<void>;
     getCwd: (id: string) => Promise<string>;
+    getForegroundProcess: (id: string) => Promise<string | null>;
     onData: (callback: (data: { id: string; data: string }) => void) => () => void;
     onExit: (callback: (data: { id: string; exitCode: number }) => void) => () => void;
   };
@@ -45,6 +46,7 @@ const api: NanoMuxAPI = {
     resize: (id, cols, rows) => ipcRenderer.invoke('pty:resize', { id, cols, rows }),
     destroy: (id) => ipcRenderer.invoke('pty:destroy', { id }),
     getCwd: (id) => ipcRenderer.invoke('pty:getCwd', { id }),
+    getForegroundProcess: (id) => ipcRenderer.invoke('pty:getForegroundProcess', { id }),
     onData: (callback) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { id: string; data: string }) => callback(data);
       ipcRenderer.on('pty:data', handler);

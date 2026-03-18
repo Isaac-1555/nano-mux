@@ -162,21 +162,19 @@ button {
   gap: 2px;
 }
 
-/* ─── Individual Tab (Chrome-style, stacked vertically) ──── */
+/* ─── Individual Tab (Expanded with cwd and activity) ──── */
 
 .session-tab {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  height: var(--tab-height);
-  padding: 0 8px 0 10px;
+  flex-direction: column;
+  padding: 8px 8px 8px 10px;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
   color: var(--text-secondary);
-  /* Chrome-style: slightly rounded, feels like a browser tab laid flat */
   background: transparent;
+  min-height: 56px;
 }
 
 .session-tab:hover {
@@ -184,7 +182,7 @@ button {
   color: var(--text-primary);
 }
 
-/* Active tab: prominent highlight, like Chrome's selected tab */
+/* Active tab: prominent highlight */
 .session-tab--active {
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -197,8 +195,8 @@ button {
   content: '';
   position: absolute;
   left: 0;
-  top: 4px;
-  bottom: 4px;
+  top: 6px;
+  bottom: 6px;
   width: 3px;
   background: var(--accent-blue);
   border-radius: 0 2px 2px 0;
@@ -206,6 +204,12 @@ button {
 
 .session-tab--active {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.session-tab__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .session-tab__icon {
@@ -228,13 +232,35 @@ button {
   text-overflow: ellipsis;
   font-size: 12.5px;
   font-weight: 450;
-  /* CRITICAL: text stays horizontal, never rotated */
-  writing-mode: horizontal-tb;
-  text-orientation: mixed;
 }
 
 .session-tab--active .session-tab__name {
   font-weight: 550;
+}
+
+.session-tab__cwd {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding-left: 26px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-tab--active .session-tab__cwd {
+  color: var(--text-secondary);
+}
+
+.session-tab__activity {
+  font-size: 10.5px;
+  color: var(--accent-blue);
+  padding-left: 26px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
 }
 
 .session-tab__close {

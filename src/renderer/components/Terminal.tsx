@@ -3,13 +3,23 @@ import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import 'xterm/css/xterm.css';
+import { useAppStore } from '../state/store';
+import { cliAgent, TUI_AGENTS } from '../utils/cliAgent';
 
 interface TerminalProps {
   sessionId: string;
   isVisible: boolean;
 }
 
-const terminals = new Map<string, { xterm: XTerm; fitAddon: FitAddon; initialized: boolean }>();
+interface TerminalEntry {
+  xterm: XTerm;
+  fitAddon: FitAddon;
+  initialized: boolean;
+  cwdPollInterval?: ReturnType<typeof setInterval>;
+  dataListenerCleanup?: () => void;
+}
+
+const terminals = new Map<string, TerminalEntry>();
 
 function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -21,7 +31,7 @@ function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
 
 export const TerminalComponent: React.FC<TerminalProps> = memo(({ sessionId, isVisible }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const { setSessionCwd, setSessionActivity } = useAppStore();
 
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || !sessionId) return;
@@ -79,55 +89,70 @@ export const TerminalComponent: React.FC<TerminalProps> = memo(({ sessionId, isV
     if (!entry.initialized) {
       entry.xterm.open(containerRef.current);
 
-      // Create PTY backend
       const home = await window.nanoMux.fs.getHome();
       await window.nanoMux.pty.create(sessionId, home);
 
-      // Connect PTY data to xterm
       const removeDataListener = window.nanoMux.pty.onData(({ id, data }) => {
         if (id === sessionId) {
           entry!.xterm.write(data);
+          cliAgent.processData(sessionId, data);
         }
       });
 
-      // Connect xterm input to PTY
       const onDataDisposable = entry.xterm.onData((data: string) => {
         window.nanoMux.pty.write(sessionId, data);
       });
 
-      // Handle resize
       const onResizeDisposable = entry.xterm.onResize(({ cols, rows }) => {
         window.nanoMux.pty.resize(sessionId, cols, rows);
       });
 
+      const cwdPollInterval = setInterval(async () => {
+        try {
+          const cwd = await window.nanoMux.pty.getCwd(sessionId);
+          setSessionCwd(sessionId, cwd);
+        } catch {
+        }
+        try {
+          const proc = await window.nanoMux.pty.getForegroundProcess(sessionId);
+          if (proc) {
+            if (TUI_AGENTS.has(proc)) {
+              const title = cliAgent.getSessionTitle(sessionId);
+              setSessionActivity(sessionId, title ? `${proc} · ${title}` : `Running ${proc}`);
+            } else {
+              setSessionActivity(sessionId, `Running ${proc}`);
+            }
+          } else {
+            setSessionActivity(sessionId, null);
+            cliAgent.clearSessionTitle(sessionId);
+          }
+        } catch {
+        }
+      }, 2000);
+
+      entry.cwdPollInterval = cwdPollInterval;
+      entry.dataListenerCleanup = removeDataListener;
       entry.initialized = true;
 
-      cleanupRef.current = () => {
-        removeDataListener();
-        onDataDisposable.dispose();
-        onResizeDisposable.dispose();
-      };
-
-      // Fit after a single animation frame
       requestAnimationFrame(() => {
         entry?.fitAddon.fit();
       });
     } else {
-      // Re-attach to DOM if already initialized but not mounted
       if (containerRef.current && !containerRef.current.querySelector('.xterm')) {
         entry.xterm.open(containerRef.current);
       }
+      requestAnimationFrame(() => {
+        entry?.fitAddon.fit();
+      });
     }
-  }, [sessionId]);
+  }, [sessionId, setSessionCwd, setSessionActivity]);
 
-  // Initialize terminal when visible
   useEffect(() => {
     if (isVisible) {
       initTerminal();
     }
   }, [isVisible, initTerminal]);
 
-  // Handle container resize with debounced fit
   useEffect(() => {
     if (!isVisible || !sessionId) return;
 
@@ -138,35 +163,20 @@ export const TerminalComponent: React.FC<TerminalProps> = memo(({ sessionId, isV
       try {
         entry.fitAddon.fit();
       } catch {
-        // Ignore fit errors during transitions
-      }
-    }, 16);
-
-    const observer = new ResizeObserver(debouncedFit);
-    observer.observe(containerRef.current!);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [sessionId, isVisible]);
-
-  // Fit terminal on window resize
-  useEffect(() => {
-    if (!isVisible || !sessionId) return;
-
-    const entry = terminals.get(sessionId);
-    if (!entry) return;
-
-    const debouncedFit = debounce(() => {
-      try {
-        entry.fitAddon.fit();
-      } catch {
-        // Ignore
       }
     }, 50);
 
     window.addEventListener('resize', debouncedFit);
-    return () => window.removeEventListener('resize', debouncedFit);
+
+    const observer = new ResizeObserver(debouncedFit);
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', debouncedFit);
+      observer.disconnect();
+    };
   }, [sessionId, isVisible]);
 
   return (
@@ -180,10 +190,15 @@ export const TerminalComponent: React.FC<TerminalProps> = memo(({ sessionId, isV
 
 TerminalComponent.displayName = 'TerminalComponent';
 
-// Cleanup terminal when session is destroyed
 export function destroyTerminal(sessionId: string) {
   const entry = terminals.get(sessionId);
   if (entry) {
+    if (entry.dataListenerCleanup) {
+      entry.dataListenerCleanup();
+    }
+    if (entry.cwdPollInterval) {
+      clearInterval(entry.cwdPollInterval);
+    }
     entry.xterm.dispose();
     terminals.delete(sessionId);
   }

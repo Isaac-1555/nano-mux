@@ -4,6 +4,7 @@ export interface Session {
   id: string;
   name: string;
   cwd: string;
+  activity: string | null;
   isActive: boolean;
 }
 
@@ -50,6 +51,7 @@ interface AppState {
   setActiveSession: (id: string) => void;
   renameSession: (id: string, name: string) => void;
   setSessionCwd: (id: string, cwd: string) => void;
+  setSessionActivity: (id: string, activity: string | null) => void;
 
   togglePanel: (panel: PanelType) => void;
   setRootDirectory: (path: string | null) => void;
@@ -94,6 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       name: `Terminal ${nextSessionNumber}`,
       cwd: '',
       isActive: true,
+      activity: null,
     };
     set({
       sessions: [
@@ -119,6 +122,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           name: `Terminal ${nextSessionNumber}`,
           cwd: '',
           isActive: true,
+          activity: null,
         }],
         activeSessionId: newId,
         nextSessionNumber: nextSessionNumber + 1,
@@ -162,6 +166,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set(state => ({
       sessions: state.sessions.map(s =>
         s.id === id ? { ...s, cwd } : s
+      ),
+    }));
+  },
+
+  setSessionActivity: (id: string, activity: string | null) => {
+    set(state => ({
+      sessions: state.sessions.map(s =>
+        s.id === id ? { ...s, activity } : s
       ),
     }));
   },

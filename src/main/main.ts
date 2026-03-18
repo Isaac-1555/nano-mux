@@ -3,7 +3,11 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as pty from 'node-pty';
+import { exec as execCb } from 'child_process';
+import { promisify } from 'util';
 import simpleGit, { SimpleGit } from 'simple-git';
+
+const execAsync = promisify(execCb);
 
 // ── PTY Management ──────────────────────────────────────────────
 
@@ -32,23 +36,24 @@ function createPtySession(id: string, cwd: string): PtySession {
 
   const session: PtySession = { id, process: proc, cwd };
   sessions.set(id, session);
+
+  proc.onData((data: string) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('pty:data', { id, data });
+  });
+
   return session;
 }
 
 // ── IPC Handlers ────────────────────────────────────────────────
 
-function setupIPC(win: BrowserWindow) {
+function setupIPC() {
   // PTY: create session
   ipcMain.handle('pty:create', (_event, { id, cwd }: { id: string; cwd: string }) => {
     const session = createPtySession(id, cwd || os.homedir());
-    session.process.onData((data: string) => {
-      if (!win.isDestroyed()) {
-        win.webContents.send('pty:data', { id, data });
-      }
-    });
     session.process.onExit(({ exitCode }: { exitCode: number }) => {
-      if (!win.isDestroyed()) {
-        win.webContents.send('pty:exit', { id, exitCode });
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('pty:exit', { id, exitCode });
       }
       sessions.delete(id);
     });
@@ -76,10 +81,50 @@ function setupIPC(win: BrowserWindow) {
     }
   });
 
-  // PTY: get cwd
-  ipcMain.handle('pty:getCwd', (_event, { id }: { id: string }) => {
+  // PTY: get foreground process
+  ipcMain.handle('pty:getForegroundProcess', async (_event, { id }: { id: string }) => {
     const session = sessions.get(id);
-    return session?.cwd || os.homedir();
+    if (!session) return null;
+    try {
+      if (process.platform === 'darwin' || process.platform === 'linux') {
+        const { stdout: childPidsOut } = await execAsync(`pgrep -P ${session.process.pid} 2>/dev/null`);
+        const childPids = childPidsOut.trim();
+        if (!childPids) return null;
+        const pids = childPids.split('\n');
+        const lastPid = pids[pids.length - 1];
+        const { stdout: commOut } = await execAsync(`ps -o comm= -p ${lastPid} 2>/dev/null`);
+        const comm = commOut.trim();
+        if (!comm) return null;
+        const baseName = comm.split('/').pop() || comm;
+        return baseName;
+      }
+    } catch {
+      // No child process running (user is at shell prompt)
+    }
+    return null;
+  });
+
+  // PTY: get cwd
+  ipcMain.handle('pty:getCwd', async (_event, { id }: { id: string }) => {
+    const session = sessions.get(id);
+    if (!session) return os.homedir();
+    try {
+      let cwd: string | null = null;
+      if (process.platform === 'darwin') {
+        const { stdout } = await execAsync(`lsof -a -p ${session.process.pid} -d cwd -Fn 2>/dev/null`);
+        const nameLine = stdout.split('\n').find(l => l.startsWith('n'));
+        if (nameLine) cwd = nameLine.slice(1);
+      } else if (process.platform === 'linux') {
+        cwd = await fs.promises.readlink(`/proc/${session.process.pid}/cwd`);
+      }
+      if (cwd) {
+        session.cwd = cwd;
+        return cwd;
+      }
+    } catch {
+      // Fall back to cached cwd
+    }
+    return session.cwd || os.homedir();
   });
 
   // ── File System ─────────────────────────────────────────────
@@ -222,7 +267,7 @@ function createWindow() {
     },
   });
 
-  setupIPC(mainWindow);
+  setupIPC();
 
   // Use env var to distinguish dev mode (with webpack-dev-server) from production build
   const isDev = process.env.NANO_MUX_DEV === '1';
