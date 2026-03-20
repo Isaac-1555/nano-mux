@@ -89,8 +89,10 @@ export const TerminalComponent: React.FC<TerminalProps> = memo(({ sessionId, isV
     if (!entry.initialized) {
       entry.xterm.open(containerRef.current);
 
-      const home = await window.nanoMux.fs.getHome();
-      await window.nanoMux.pty.create(sessionId, home);
+      const seededCwd = useAppStore.getState().sessions.find(s => s.id === sessionId)?.cwd?.trim();
+      const initialCwd = seededCwd || await window.nanoMux.fs.getHome();
+      const created = await window.nanoMux.pty.create(sessionId, initialCwd);
+      setSessionCwd(sessionId, created.cwd);
 
       const removeDataListener = window.nanoMux.pty.onData(({ id, data }) => {
         if (id === sessionId) {

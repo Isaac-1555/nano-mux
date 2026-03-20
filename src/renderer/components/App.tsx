@@ -11,7 +11,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (sessions.length === 0) {
-      addSession();
+      addSession('');
     }
   }, []);
 

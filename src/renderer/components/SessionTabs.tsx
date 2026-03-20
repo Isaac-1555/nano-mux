@@ -49,7 +49,7 @@ const SessionTab = memo<SessionTabProps>(({ session, isActive, onSelect, onRemov
         </div>
       )}
       {session.activity && (
-        <div className="session-tab__activity">
+        <div className="session-tab__activity" title={session.activity}>
           {session.activity}
         </div>
       )}
@@ -63,8 +63,9 @@ export const SessionTabs: React.FC = () => {
   const { sessions, activeSessionId, addSession, removeSession, setActiveSession } = useAppStore();
 
   const handleAddSession = useCallback(() => {
-    addSession();
-  }, [addSession]);
+    const activeSession = sessions.find(session => session.id === activeSessionId);
+    addSession(activeSession?.cwd || '');
+  }, [addSession, sessions, activeSessionId]);
 
   const handleRemoveSession = useCallback((e: React.MouseEvent, id: string) => {
     e.stopPropagation();

@@ -46,7 +46,7 @@ interface AppState {
   gitStatus: GitStatus | null;
 
   // Actions
-  addSession: () => string;
+  addSession: (initialCwd?: string) => string;
   removeSession: (id: string) => void;
   setActiveSession: (id: string) => void;
   renameSession: (id: string, name: string) => void;
@@ -88,13 +88,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   gitStatus: null,
 
-  addSession: () => {
+  addSession: (initialCwd = '') => {
     const id = generateId();
     const { nextSessionNumber, sessions } = get();
     const newSession: Session = {
       id,
       name: `Terminal ${nextSessionNumber}`,
-      cwd: '',
+      cwd: initialCwd,
       isActive: true,
       activity: null,
     };
@@ -111,6 +111,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   removeSession: (id: string) => {
     const { sessions, activeSessionId } = get();
+    const removedSession = sessions.find(s => s.id === id);
     const filtered = sessions.filter(s => s.id !== id);
     if (filtered.length === 0) {
       // Add a new session if removing the last one
@@ -120,7 +121,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         sessions: [{
           id: newId,
           name: `Terminal ${nextSessionNumber}`,
-          cwd: '',
+          cwd: removedSession?.cwd || '',
           isActive: true,
           activity: null,
         }],

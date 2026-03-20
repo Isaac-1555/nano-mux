@@ -31,7 +31,7 @@
   --accent-orange: #f0883e;
 
   /* Sizing */
-  --sidebar-width: 200px;
+  --sidebar-width: 220px;
   --toolbar-width: 42px;
   --panel-width: 260px;
   --titlebar-height: 38px;
@@ -174,7 +174,7 @@ button {
   transition: all var(--transition-fast);
   color: var(--text-secondary);
   background: transparent;
-  min-height: 56px;
+  min-height: 64px;
 }
 
 .session-tab:hover {
@@ -257,10 +257,13 @@ button {
   color: var(--accent-blue);
   padding-left: 26px;
   margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   opacity: 0.9;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .session-tab__close {
